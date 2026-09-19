@@ -2,114 +2,229 @@
 <html lang="th">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Secure Flipbook Viewer</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Modern Secure Flipbook</title>
   
+  <!-- Google Fonts: Inter & Sarabun -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sarabun:wght@300;400;500;600&display=swap" rel="stylesheet">
+
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- PDF.js CDN -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <!-- StPageFlip CDN -->
   <script src="https://cdn.jsdelivr.net/npm/page-flip/dist/js/page-flip.browser.js"></script>
-  <!-- CryptoJS CDN (AES Encryption) -->
+  <!-- CryptoJS CDN -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"></script>
 
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Sarabun', 'Inter', 'sans-serif'],
+          },
+          colors: {
+            brand: {
+              50: '#f0fdfa',
+              500: '#14b8a6',
+              600: '#0d9488',
+              700: '#0f766e',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
   <style>
+    body {
+      font-family: 'Sarabun', 'Inter', sans-serif;
+      background: radial-gradient(circle at 50% 50%, #1e293b 0%, #0f172a 100%);
+    }
+
+    /* Flipbook Page Styling */
     .page-wrapper {
-      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.45);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .st-page {
       background-color: #ffffff;
+      background-size: 100% 100%;
+    }
+
+    /* Zoom viewport container */
+    #zoom-container {
+      transition: transform 0.2s ease-out;
+      transform-origin: center center;
+    }
+
+    /* ซ่อน Scrollbar ส่วนเกิน */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 4px;
     }
   </style>
 </head>
-<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col items-center justify-center p-4">
+<body class="text-slate-200 min-h-screen flex flex-col items-center justify-center p-2 sm:p-6 select-none overflow-x-hidden">
 
-  <!-- โซนที่ 1: อัปโหลดและตั้งรหัสผ่าน -->
-  <div id="upload-panel" class="w-full max-w-md bg-slate-800 p-6 rounded-2xl shadow-2xl border border-slate-700">
-    <h1 class="text-2xl font-bold mb-2 text-center text-indigo-400">สร้าง Flipbook ติดรหัสผ่าน</h1>
-    <p class="text-xs text-slate-400 mb-6 text-center">แปลงไฟล์ PDF และล็อกไฟล์ด้วย AES ก่อนเปิดอ่าน</p>
-
-    <div class="space-y-4">
+  <!-- ==================== โซน 1: อัปโหลด & ตั้งรหัสผ่าน ==================== -->
+  <div id="upload-panel" class="w-full max-w-lg bg-slate-800/80 backdrop-blur-xl p-8 rounded-3xl shadow-2xl border border-slate-700/60 transition-all duration-300">
+    <div class="flex items-center space-x-3 mb-6">
+      <div class="w-10 h-10 rounded-xl bg-brand-500/20 text-brand-500 flex items-center justify-center font-bold text-xl">
+        📖
+      </div>
       <div>
-        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1">เลือกไฟล์ PDF</label>
-        <input type="file" id="pdf-file" accept="application/pdf" class="w-full text-sm text-slate-300 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:bg-indigo-600 file:text-white file:font-semibold hover:file:bg-indigo-500 cursor-pointer">
+        <h1 class="text-xl font-bold text-white tracking-tight">ระบบสร้าง Flipbook เข้ารหัส</h1>
+        <p class="text-xs text-slate-400">แปลงไฟล์ PDF รองรับการเปิดอ่านแบบ 3D สมจริง</p>
+      </div>
+    </div>
+
+    <div class="space-y-5">
+      <div>
+        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">เลือกเอกสาร PDF</label>
+        <label class="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-slate-600 hover:border-brand-500/70 rounded-2xl cursor-pointer bg-slate-900/50 hover:bg-slate-900/80 transition duration-200">
+          <div class="flex flex-col items-center justify-center pt-5 pb-6">
+            <svg class="w-8 h-8 mb-2 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+            <p id="file-name" class="text-xs text-slate-400 font-medium">คลิกเพื่อเลือกไฟล์ หรือลากไฟล์มาวางที่นี่</p>
+          </div>
+          <input type="file" id="pdf-file" accept="application/pdf" class="hidden">
+        </label>
       </div>
 
       <div>
-        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1">ตั้งรหัสผ่านล็อกเอกสาร</label>
-        <input type="password" id="set-password" placeholder="กำหนดรหัสผ่านเปิดไฟล์" class="w-full px-4 py-2.5 bg-slate-900 border border-slate-700 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none text-white text-sm">
+        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">ตั้งรหัสผ่านล็อกเอกสาร</label>
+        <div class="relative">
+          <input type="password" id="set-password" placeholder="ตั้งรหัสผ่านความปลอดภัย (AES-256)" class="w-full px-4 py-3 bg-slate-900/80 border border-slate-700/80 rounded-xl focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none text-white text-sm transition">
+        </div>
       </div>
 
-      <button id="btn-process" class="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl transition duration-200 shadow-lg shadow-indigo-600/30">
-        เข้ารหัสและเริ่มแปลงเป็น Flipbook
+      <button id="btn-process" class="w-full py-3.5 bg-brand-600 hover:bg-brand-500 text-white font-semibold rounded-xl transition duration-200 shadow-lg shadow-brand-600/30 flex items-center justify-center gap-2">
+        <span>ประมวลผลและสร้าง Flipbook</span>
       </button>
     </div>
   </div>
 
-  <!-- โซนที่ 2: ป้อนรหัสผ่านเพื่อปลดล็อก -->
-  <div id="password-modal" class="hidden w-full max-w-sm bg-slate-800 p-6 rounded-2xl shadow-2xl border border-slate-700 text-center">
-    <div class="w-12 h-12 bg-indigo-600/20 text-indigo-400 rounded-full flex items-center justify-center mx-auto mb-3">
+  <!-- ==================== โซน 2: กล่องป้อนรหัสผ่าน ==================== -->
+  <div id="password-modal" class="hidden w-full max-w-sm bg-slate-800/90 backdrop-blur-xl p-8 rounded-3xl shadow-2xl border border-slate-700/60 text-center">
+    <div class="w-14 h-14 bg-brand-500/10 text-brand-500 rounded-2xl flex items-center justify-center mx-auto mb-4 text-2xl border border-brand-500/20">
       🔒
     </div>
-    <h2 class="text-xl font-bold mb-1">เอกสารนี้ถูกล็อกไว้</h2>
-    <p class="text-xs text-slate-400 mb-4">โปรดป้อนรหัสผ่านเพื่อถอดรหัสและเปิด Flipbook</p>
+    <h2 class="text-lg font-bold text-white mb-1">เอกสารถูกป้องกันด้วยรหัสผ่าน</h2>
+    <p class="text-xs text-slate-400 mb-6 leading-relaxed">กรุณากรอกรหัสผ่านเพื่อถอดรหัสและเปิดอ่านเนื้อหา</p>
     
-    <input type="password" id="input-password" placeholder="ป้อนรหัสผ่าน" class="w-full px-4 py-2.5 bg-slate-900 border border-slate-700 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none text-white text-sm mb-3">
-    <p id="error-msg" class="text-xs text-rose-500 mb-3 hidden">รหัสผ่านไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง</p>
+    <input type="password" id="input-password" placeholder="กรอกรหัสผ่าน" class="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-xl focus:ring-2 focus:ring-brand-500 outline-none text-white text-sm mb-3 text-center tracking-widest">
+    <p id="error-msg" class="text-xs text-rose-400 mb-3 hidden">รหัสผ่านไม่ถูกต้อง โปรดลองอีกครั้ง</p>
     
-    <button id="btn-unlock" class="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-xl transition duration-200">
+    <button id="btn-unlock" class="w-full py-3 bg-brand-600 hover:bg-brand-500 text-white font-medium rounded-xl transition duration-200">
       ปลดล็อกเอกสาร
     </button>
   </div>
 
-  <!-- โซนที่ 3: หน้าแสดงผล Flipbook -->
-  <div id="viewer-panel" class="hidden flex flex-col items-center justify-center w-full">
-    <div class="flex items-center gap-4 mb-4">
-      <button id="btn-prev" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm border border-slate-700">◀ ย้อนกลับ</button>
-      <span id="page-indicator" class="text-sm font-medium text-slate-400">หน้า 1 / 1</span>
-      <button id="btn-next" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm border border-slate-700">ถัดไป ▶</button>
+  <!-- ==================== โซน 3: ตัวอ่าน Flipbook Viewer ==================== -->
+  <div id="viewer-panel" class="hidden flex flex-col items-center justify-center w-full h-full relative">
+    
+    <!-- พื้นที่แสดงหน้าหนังสือ + Zoom Viewport -->
+    <div class="w-full flex-1 flex items-center justify-center overflow-auto min-h-[60vh] max-h-[85vh] py-6 px-2" id="flip-viewport">
+      <div id="zoom-container">
+        <div id="flipbook" class="page-wrapper mx-auto"></div>
+      </div>
     </div>
 
-    <div id="flipbook-container" class="relative flex items-center justify-center overflow-hidden">
-      <!-- หน้านิตยสาร/หนังสือจะถูก Render ลงในนี้ -->
-      <div id="flipbook" class="page-wrapper"></div>
+    <!-- แผงควบคุมสไตล์ Floating Bar ทันสมัย ด้านล่าง -->
+    <div class="fixed bottom-6 z-50 flex items-center gap-1.5 sm:gap-2 px-4 py-2.5 bg-slate-800/80 backdrop-blur-md rounded-2xl border border-slate-700/80 shadow-2xl">
+      <!-- พลิกหน้าย้อนกลับ -->
+      <button id="btn-prev" class="p-2 sm:px-3 sm:py-2 text-slate-300 hover:text-white hover:bg-slate-700/60 rounded-xl transition text-sm flex items-center gap-1" title="หน้าก่อนหน้า">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+        <span class="hidden sm:inline">ก่อนหน้า</span>
+      </button>
+
+      <!-- เลขหน้าปัจจุบัน -->
+      <span id="page-indicator" class="px-3 text-xs font-semibold tracking-wider text-brand-500 border-x border-slate-700">1 / 1</span>
+
+      <!-- พลิกหน้าถัดไป -->
+      <button id="btn-next" class="p-2 sm:px-3 sm:py-2 text-slate-300 hover:text-white hover:bg-slate-700/60 rounded-xl transition text-sm flex items-center gap-1" title="หน้าถัดไป">
+        <span class="hidden sm:inline">ถัดไป</span>
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+      </button>
+
+      <div class="w-px h-5 bg-slate-700 mx-1"></div>
+
+      <!-- ปุ่ม Zoom In -->
+      <button id="btn-zoom-in" class="p-2 text-slate-300 hover:text-white hover:bg-slate-700/60 rounded-xl transition" title="ขยาย">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v6m3-3H7"></path></svg>
+      </button>
+
+      <!-- ปุ่ม Reset Zoom -->
+      <button id="btn-zoom-reset" class="px-2 py-1 text-[11px] font-medium text-slate-400 hover:text-white hover:bg-slate-700/60 rounded-lg transition" title="ขนาดเดิม">
+        100%
+      </button>
+
+      <!-- ปุ่ม Zoom Out -->
+      <button id="btn-zoom-out" class="p-2 text-slate-300 hover:text-white hover:bg-slate-700/60 rounded-xl transition" title="ย่อ">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM13 10H7"></path></svg>
+      </button>
+
+      <div class="w-px h-5 bg-slate-700 mx-1"></div>
+
+      <!-- ปุ่ม Fullscreen -->
+      <button id="btn-fullscreen" class="p-2 text-slate-300 hover:text-white hover:bg-slate-700/60 rounded-xl transition" title="เต็มจอ">
+        <svg id="fullscreen-icon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path>
+        </svg>
+      </button>
     </div>
   </div>
 
   <script>
-    // ตั้งค่า PDF.js Worker
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
     let encryptedData = null;
     let pageFlipInstance = null;
+    let currentZoom = 1;
+    let totalDocPages = 1;
 
-    // 1. รับไฟล์ แปลงเป็น Base64 และเข้ารหัสด้วย CryptoJS (AES)
+    // แสดงชื่อไฟล์เมื่อมีการเลือก
+    const fileInput = document.getElementById('pdf-file');
+    fileInput.addEventListener('change', (e) => {
+      if (e.target.files.length) {
+        document.getElementById('file-name').innerText = e.target.files[0].name;
+      }
+    });
+
+    // 1. เข้ารหัสไฟล์
     document.getElementById('btn-process').addEventListener('click', () => {
-      const fileInput = document.getElementById('pdf-file');
       const password = document.getElementById('set-password').value;
 
       if (!fileInput.files.length) {
-        alert('กรุณาเลือกไฟล์ PDF');
+        alert('กรุณาเลือกไฟล์ PDF ก่อนดำเนินการ');
         return;
       }
       if (!password) {
-        alert('กรุณากำหนดรหัสผ่าน');
+        alert('กรุณาตั้งรหัสผ่านสำหรับเปิดไฟล์');
         return;
       }
 
       const reader = new FileReader();
       reader.onload = function(e) {
         const rawBase64 = e.target.result.split(',')[1];
-        // ทำการเข้ารหัสด้วยรหัสผ่านที่ตั้งไว้
         encryptedData = CryptoJS.AES.encrypt(rawBase64, password).toString();
 
-        // ซ่อนหน้าอัปโหลด แล้วแสดงหน้าปลดล็อกรหัสผ่าน
         document.getElementById('upload-panel').classList.add('hidden');
         document.getElementById('password-modal').classList.remove('hidden');
       };
       reader.readAsDataURL(fileInput.files[0]);
     });
 
-    // 2. ปลดล็อกและถอดรหัสไฟล์ PDF
+    // 2. ถอดรหัสผ่าน
     document.getElementById('btn-unlock').addEventListener('click', () => {
       const enteredPassword = document.getElementById('input-password').value;
       const errorMsg = document.getElementById('error-msg');
@@ -123,7 +238,6 @@
           return;
         }
 
-        // แปลง Base64 กลับเป็น Binary Buffer สำหรับ PDF.js
         const binaryString = window.atob(decryptedBase64);
         const len = binaryString.length;
         const bytes = new Uint8Array(len);
@@ -134,34 +248,39 @@
         document.getElementById('password-modal').classList.add('hidden');
         document.getElementById('viewer-panel').classList.remove('hidden');
 
-        renderFlipbook(bytes.buffer);
+        initFlipbook(bytes.buffer);
       } catch (err) {
         errorMsg.classList.remove('hidden');
       }
     });
 
-    // 3. แปลง PDF ทีละหน้าเป็น Canvas แล้วประกอบลงใน StPageFlip
-    async function renderFlipbook(pdfArrayBuffer) {
+    // 3. Render PDF และสร้าง PageFlip Responsive
+    async function initFlipbook(pdfArrayBuffer) {
       const loadingTask = pdfjsLib.getDocument({ data: pdfArrayBuffer });
       const pdf = await loadingTask.promise;
       const flipContainer = document.getElementById('flipbook');
       flipContainer.innerHTML = '';
 
-      const totalPages = pdf.numPages;
+      totalDocPages = pdf.numPages;
 
-      for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
+      // คำนวณความกว้างหน้าจอเพื่อปรับขนาดเริ่มต้น
+      const isMobile = window.innerWidth < 768;
+      const baseWidth = isMobile ? window.innerWidth * 0.9 : 440;
+      const baseHeight = isMobile ? baseWidth * 1.414 : 620;
+
+      for (let pageNum = 1; pageNum <= totalDocPages; pageNum++) {
         const page = await pdf.getPage(pageNum);
-        const viewport = page.getViewport({ scale: 1.5 });
+        const viewport = page.getViewport({ scale: 2.0 }); // Hi-DPI Render คมชัดตอนซูม
 
         const pageDiv = document.createElement('div');
-        pageDiv.className = 'page bg-white flex items-center justify-center shadow-inner';
+        pageDiv.className = 'st-page flex items-center justify-center';
 
         const canvas = document.createElement('canvas');
         const context = canvas.getContext('2d');
         canvas.height = viewport.height;
         canvas.width = viewport.width;
-        canvas.style.maxWidth = '100%';
-        canvas.style.height = 'auto';
+        canvas.style.width = '100%';
+        canvas.style.height = '100%';
 
         await page.render({ canvasContext: context, viewport: viewport }).promise;
 
@@ -169,29 +288,68 @@
         flipContainer.appendChild(pageDiv);
       }
 
-      // เริ่มต้น StPageFlip
+      // เริ่มต้นอินสแตนซ์ Flipbook
       pageFlipInstance = new St.PageFlip(flipContainer, {
-        width: 450,
-        height: 600,
+        width: baseWidth,
+        height: baseHeight,
         size: 'stretch',
-        minWidth: 315,
-        maxWidth: 1000,
-        minHeight: 420,
-        maxHeight: 1350,
+        minWidth: 280,
+        maxWidth: 1100,
+        minHeight: 400,
+        maxHeight: 1400,
         showCover: true,
-        useMouseEvents: true
+        useMouseEvents: true,
+        maxShadowOpacity: 0.5,
+        mobileScrollSupport: false
       });
 
-      pageFlipInstance.loadFromHTML(document.querySelectorAll('.page'));
+      pageFlipInstance.loadFromHTML(document.querySelectorAll('.st-page'));
 
-      // อัปเดตเลขหน้า
+      updatePageNumber(0);
+
       pageFlipInstance.on('flip', (e) => {
-        document.getElementById('page-indicator').innerText = `หน้า ${e.data + 1} / ${totalPages}`;
+        updatePageNumber(e.data);
       });
 
+      // ผูกปุ่มการทำงาน
       document.getElementById('btn-prev').onclick = () => pageFlipInstance.flipPrev();
       document.getElementById('btn-next').onclick = () => pageFlipInstance.flipNext();
     }
+
+    function updatePageNumber(index) {
+      document.getElementById('page-indicator').innerText = `${index + 1} / ${totalDocPages}`;
+    }
+
+    // ==================== ระบบ Zoom Controls ====================
+    const zoomContainer = document.getElementById('zoom-container');
+    const zoomResetBtn = document.getElementById('btn-zoom-reset');
+
+    function applyZoom(scale) {
+      currentZoom = Math.min(Math.max(scale, 0.75), 2.2);
+      zoomContainer.style.transform = `scale(${currentZoom})`;
+      zoomResetBtn.innerText = `${Math.round(currentZoom * 100)}%`;
+      
+      // ปิดหรือเปิดการลากพลิกหน้าถ้ากำลังขยายเพื่อกันชนกับการเลื่อนดู
+      if (pageFlipInstance) {
+        pageFlipInstance.updateModifier({ useMouseEvents: currentZoom === 1 });
+      }
+    }
+
+    document.getElementById('btn-zoom-in').onclick = () => applyZoom(currentZoom + 0.2);
+    document.getElementById('btn-zoom-out').onclick = () => applyZoom(currentZoom - 0.2);
+    zoomResetBtn.onclick = () => applyZoom(1);
+
+    // ==================== ระบบ Fullscreen API ====================
+    const fullscreenBtn = document.getElementById('btn-fullscreen');
+    fullscreenBtn.onclick = () => {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(() => {});
+      } else {
+        if (document.exitFullscreen) {
+          document.exitFullscreen();
+        }
+      }
+    };
   </script>
 </body>
 </html>
