@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Secure Flipbook Viewer</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- PDF.js CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <!-- StPageFlip CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/page-flip/dist/js/page-flip.browser.js"></script>
+  <!-- CryptoJS CDN (AES Encryption) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"></script>
+
+  <style>
+    .page-wrapper {
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+      background-color: #ffffff;
+    }
+  </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col items-center justify-center p-4">
+
+  <!-- โซนที่ 1: อัปโหลดและตั้งรหัสผ่าน -->
+  <div id="upload-panel" class="w-full max-w-md bg-slate-800 p-6 rounded-2xl shadow-2xl border border-slate-700">
+    <h1 class="text-2xl font-bold mb-2 text-center text-indigo-400">สร้าง Flipbook ติดรหัสผ่าน</h1>
+    <p class="text-xs text-slate-400 mb-6 text-center">แปลงไฟล์ PDF และล็อกไฟล์ด้วย AES ก่อนเปิดอ่าน</p>
+
+    <div class="space-y-4">
+      <div>
+        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1">เลือกไฟล์ PDF</label>
+        <input type="file" id="pdf-file" accept="application/pdf" class="w-full text-sm text-slate-300 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:bg-indigo-600 file:text-white file:font-semibold hover:file:bg-indigo-500 cursor-pointer">
+      </div>
+
+      <div>
+        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1">ตั้งรหัสผ่านล็อกเอกสาร</label>
+        <input type="password" id="set-password" placeholder="กำหนดรหัสผ่านเปิดไฟล์" class="w-full px-4 py-2.5 bg-slate-900 border border-slate-700 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none text-white text-sm">
+      </div>
+
+      <button id="btn-process" class="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl transition duration-200 shadow-lg shadow-indigo-600/30">
+        เข้ารหัสและเริ่มแปลงเป็น Flipbook
+      </button>
+    </div>
+  </div>
+
+  <!-- โซนที่ 2: ป้อนรหัสผ่านเพื่อปลดล็อก -->
+  <div id="password-modal" class="hidden w-full max-w-sm bg-slate-800 p-6 rounded-2xl shadow-2xl border border-slate-700 text-center">
+    <div class="w-12 h-12 bg-indigo-600/20 text-indigo-400 rounded-full flex items-center justify-center mx-auto mb-3">
+      🔒
+    </div>
+    <h2 class="text-xl font-bold mb-1">เอกสารนี้ถูกล็อกไว้</h2>
+    <p class="text-xs text-slate-400 mb-4">โปรดป้อนรหัสผ่านเพื่อถอดรหัสและเปิด Flipbook</p>
+    
+    <input type="password" id="input-password" placeholder="ป้อนรหัสผ่าน" class="w-full px-4 py-2.5 bg-slate-900 border border-slate-700 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none text-white text-sm mb-3">
+    <p id="error-msg" class="text-xs text-rose-500 mb-3 hidden">รหัสผ่านไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง</p>
+    
+    <button id="btn-unlock" class="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-xl transition duration-200">
+      ปลดล็อกเอกสาร
+    </button>
+  </div>
+
+  <!-- โซนที่ 3: หน้าแสดงผล Flipbook -->
+  <div id="viewer-panel" class="hidden flex flex-col items-center justify-center w-full">
+    <div class="flex items-center gap-4 mb-4">
+      <button id="btn-prev" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm border border-slate-700">◀ ย้อนกลับ</button>
+      <span id="page-indicator" class="text-sm font-medium text-slate-400">หน้า 1 / 1</span>
+      <button id="btn-next" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm border border-slate-700">ถัดไป ▶</button>
+    </div>
+
+    <div id="flipbook-container" class="relative flex items-center justify-center overflow-hidden">
+      <!-- หน้านิตยสาร/หนังสือจะถูก Render ลงในนี้ -->
+      <div id="flipbook" class="page-wrapper"></div>
+    </div>
+  </div>
+
+  <script>
+    // ตั้งค่า PDF.js Worker
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+    let encryptedData = null;
+    let pageFlipInstance = null;
+
+    // 1. รับไฟล์ แปลงเป็น Base64 และเข้ารหัสด้วย CryptoJS (AES)
+    document.getElementById('btn-process').addEventListener('click', () => {
+      const fileInput = document.getElementById('pdf-file');
+      const password = document.getElementById('set-password').value;
+
+      if (!fileInput.files.length) {
+        alert('กรุณาเลือกไฟล์ PDF');
+        return;
+      }
+      if (!password) {
+        alert('กรุณากำหนดรหัสผ่าน');
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const rawBase64 = e.target.result.split(',')[1];
+        // ทำการเข้ารหัสด้วยรหัสผ่านที่ตั้งไว้
+        encryptedData = CryptoJS.AES.encrypt(rawBase64, password).toString();
+
+        // ซ่อนหน้าอัปโหลด แล้วแสดงหน้าปลดล็อกรหัสผ่าน
+        document.getElementById('upload-panel').classList.add('hidden');
+        document.getElementById('password-modal').classList.remove('hidden');
+      };
+      reader.readAsDataURL(fileInput.files[0]);
+    });
+
+    // 2. ปลดล็อกและถอดรหัสไฟล์ PDF
+    document.getElementById('btn-unlock').addEventListener('click', () => {
+      const enteredPassword = document.getElementById('input-password').value;
+      const errorMsg = document.getElementById('error-msg');
+
+      try {
+        const decrypted = CryptoJS.AES.decrypt(encryptedData, enteredPassword);
+        const decryptedBase64 = decrypted.toString(CryptoJS.enc.Utf8);
+
+        if (!decryptedBase64) {
+          errorMsg.classList.remove('hidden');
+          return;
+        }
+
+        // แปลง Base64 กลับเป็น Binary Buffer สำหรับ PDF.js
+        const binaryString = window.atob(decryptedBase64);
+        const len = binaryString.length;
+        const bytes = new Uint8Array(len);
+        for (let i = 0; i < len; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+
+        document.getElementById('password-modal').classList.add('hidden');
+        document.getElementById('viewer-panel').classList.remove('hidden');
+
+        renderFlipbook(bytes.buffer);
+      } catch (err) {
+        errorMsg.classList.remove('hidden');
+      }
+    });
+
+    // 3. แปลง PDF ทีละหน้าเป็น Canvas แล้วประกอบลงใน StPageFlip
+    async function renderFlipbook(pdfArrayBuffer) {
+      const loadingTask = pdfjsLib.getDocument({ data: pdfArrayBuffer });
+      const pdf = await loadingTask.promise;
+      const flipContainer = document.getElementById('flipbook');
+      flipContainer.innerHTML = '';
+
+      const totalPages = pdf.numPages;
+
+      for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
+        const page = await pdf.getPage(pageNum);
+        const viewport = page.getViewport({ scale: 1.5 });
+
+        const pageDiv = document.createElement('div');
+        pageDiv.className = 'page bg-white flex items-center justify-center shadow-inner';
+
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
+        canvas.height = viewport.height;
+        canvas.width = viewport.width;
+        canvas.style.maxWidth = '100%';
+        canvas.style.height = 'auto';
+
+        await page.render({ canvasContext: context, viewport: viewport }).promise;
+
+        pageDiv.appendChild(canvas);
+        flipContainer.appendChild(pageDiv);
+      }
+
+      // เริ่มต้น StPageFlip
+      pageFlipInstance = new St.PageFlip(flipContainer, {
+        width: 450,
+        height: 600,
+        size: 'stretch',
+        minWidth: 315,
+        maxWidth: 1000,
+        minHeight: 420,
+        maxHeight: 1350,
+        showCover: true,
+        useMouseEvents: true
+      });
+
+      pageFlipInstance.loadFromHTML(document.querySelectorAll('.page'));
+
+      // อัปเดตเลขหน้า
+      pageFlipInstance.on('flip', (e) => {
+        document.getElementById('page-indicator').innerText = `หน้า ${e.data + 1} / ${totalPages}`;
+      });
+
+      document.getElementById('btn-prev').onclick = () => pageFlipInstance.flipPrev();
+      document.getElementById('btn-next').onclick = () => pageFlipInstance.flipNext();
+    }
+  </script>
+</body>
+</html>
